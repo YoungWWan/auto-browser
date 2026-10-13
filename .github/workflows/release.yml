@@ -1,14 +1,23 @@
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to build and publish (for example v0.3.1)
+        required: true
+        type: string
   push:
     tags: ["v*"]
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -18,10 +27,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-15-intel
             target: aarch64-apple-darwin
             bundles: dmg
-          - os: macos-latest
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             bundles: dmg
           - os: windows-latest
@@ -33,6 +42,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -51,6 +62,8 @@ jobs:
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev libdbus-1-dev patchelf xdg-utils
       - run: npm ci
       - run: npm run check:version
+      - name: Verify selected release tag matches application version
+        run: node --eval "if ('v' + require('./package.json').version !== process.env.RELEASE_TAG) throw new Error('Release tag does not match package version')"
       - run: npx playwright install --with-deps chromium
       - run: npm test
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
@@ -75,6 +88,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -87,4 +102,4 @@ jobs:
       - name: Publish preview release only after all platforms pass
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" artifacts/release/* --verify-tag --title "Auto Browser $GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md --prerelease
+        run: gh release create "$RELEASE_TAG" artifacts/release/* --verify-tag --title "Auto Browser $RELEASE_TAG" --notes-file RELEASE_NOTES.md --prerelease

@@ -45,7 +45,7 @@ npm run desktop:build -- --target x86_64-apple-darwin --bundles dmg
 
 默认生成 release 安装包，位于 `src-tauri/target/release/bundle/`；显式使用 `--target` 时位于 `src-tauri/target/<target>/release/bundle/`。调试构建可加 `--debug`。`desktop:build` 会先编译并打包同一架构的 Agent 二进制；直接运行 `tauri build` 不会准备 Agent。
 
-主分支与 PR 自动执行三端检查；推送 `v*` 标签后执行四个构建目标，全部通过后发布 GitHub 预览版和 `SHA256SUMS.txt`。发布前运行 `npm run check:version`，确保 npm、Cargo、Tauri 和标签版本一致。
+主分支与 PR 自动执行三端检查；推送 `v*` 标签后执行四个构建目标，全部通过后发布 GitHub 预览版和 `SHA256SUMS.txt`。发布前运行 `npm run check:version`，确保 npm、Cargo、Tauri 和标签版本一致。云端运行器临时不可用时，可在 Actions → Release → Run workflow 选择 `main` 并填写已有版本标签重试；构建仍读取该标签的源码。macOS CI 使用 `macos-15-intel`，通过 Rust 目标分别生成 Intel 与 Apple Silicon 安装包。
 
 ## 接入自己的 Agent
 
