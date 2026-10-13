@@ -1,0 +1,65 @@
+{
+  "id": "demo-customer",
+  "name": "新增客户",
+  "description": "在练习页面填写客户资料，并检查保存结果。",
+  "version": 1,
+  "startUrl": "auto-browser://demo",
+  "domain": "127.0.0.1",
+  "tags": ["表单", "练习"],
+  "status": "draft",
+  "updatedAt": "",
+  "parameters": [
+    { "name": "name", "label": "客户姓名", "kind": "string", "required": true },
+    { "name": "email", "label": "邮箱", "kind": "string", "required": true },
+    {
+      "name": "company",
+      "label": "公司",
+      "kind": "string",
+      "required": false,
+      "default": "示例公司"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "fill",
+      "target": { "label": "客户姓名" },
+      "value": "${name}",
+      "description": "填写客户姓名"
+    },
+    {
+      "kind": "fill",
+      "target": { "label": "邮箱" },
+      "value": "${email}",
+      "description": "填写邮箱"
+    },
+    {
+      "kind": "fill",
+      "target": { "label": "公司" },
+      "value": "${company}",
+      "description": "填写公司"
+    },
+    {
+      "kind": "select",
+      "target": { "label": "客户类型" },
+      "value": "business",
+      "description": "选择企业客户"
+    },
+    {
+      "kind": "check",
+      "target": { "label": "接收产品更新" },
+      "value": true,
+      "description": "开启产品更新"
+    },
+    {
+      "kind": "click",
+      "target": { "text": "保存客户" },
+      "description": "保存客户"
+    }
+  ],
+  "completion": {
+    "kind": "assert_text",
+    "target": { "selector": "#result" },
+    "value": "已保存：${name}",
+    "description": "确认页面显示新客户保存结果"
+  }
+}

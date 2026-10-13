@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-export-flow-file"
+description = "Enables the export_flow_file command without any pre-configured scope."
+commands.allow = ["export_flow_file"]
+
+[[permission]]
+identifier = "deny-export-flow-file"
+description = "Denies the export_flow_file command without any pre-configured scope."
+commands.deny = ["export_flow_file"]

@@ -1,0 +1,53 @@
+{
+  "name": "auto-browser",
+  "version": "0.3.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "tauri": "tauri",
+    "desktop": "cargo build --manifest-path src-tauri/Cargo.toml --bin auto-browser-agent && tauri dev",
+    "desktop:build": "node scripts/build-desktop.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:e2e": "node scripts/smoke.mjs",
+    "test:flows": "node scripts/flow-smoke.mjs",
+    "test:ui:spaces": "node scripts/space-ui-smoke.mjs",
+    "test:ui:jev": "node scripts/jev-ui-smoke.mjs",
+    "test:jev:native": "node scripts/jev-native-smoke.mjs",
+    "check:version": "node scripts/check-version.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.12.2",
+    "lucide-react": "^0.468.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-markdown": "10.1.0",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@tauri-apps/cli": "2.12.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "playwright": "^1.58.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3",
+    "vite": "8.3.4"
+  },
+  "description": "A local-first desktop browser for your own AI agents, with MCP, recorded workflows and reusable JavaScript packages.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YoungWWan/auto-browser.git"
+  },
+  "homepage": "https://github.com/YoungWWan/auto-browser",
+  "bugs": {
+    "url": "https://github.com/YoungWWan/auto-browser/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-ui",
+  "description": "Only the local management webview receives Tauri permissions.",
+  "webviews": ["main"],
+  "permissions": [
+    "core:default",
+    "allow-tool-call",
+    "allow-workspace-layout",
+    "allow-export-flow-file",
+    "allow-jev-settings",
+    "allow-jev-save-settings",
+    "allow-jev-remove-credential"
+  ]
+}

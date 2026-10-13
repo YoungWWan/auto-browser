@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-page-message"
+description = "Enables the page_message command without any pre-configured scope."
+commands.allow = ["page_message"]
+
+[[permission]]
+identifier = "deny-page-message"
+description = "Denies the page_message command without any pre-configured scope."
+commands.deny = ["page_message"]

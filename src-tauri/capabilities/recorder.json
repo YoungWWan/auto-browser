@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "web-page-events",
+  "description": "Remote pages may only report their own recording events and requested script results.",
+  "local": false,
+  "remote": { "urls": ["http://*:*/*", "https://*:*/*"] },
+  "webviews": ["page-*"],
+  "permissions": ["allow-page-message"]
+}

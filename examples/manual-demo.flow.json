@@ -1,0 +1,2111 @@
+{
+  "archivedRevisions": [
+    {
+      "createdAt": "2026-10-10T15:22:38.665311+00:00",
+      "flowId": "ff540127-297e-4ec3-b7dc-3bdb0b97a845",
+      "id": "53b63e70-0e68-41a3-878d-2d83df4c4cad",
+      "knowledge": {
+        "exceptionsMarkdown": "出现必填或邮箱校验错误时修正本次数据。页面结构不同则重新观察，不盲目调用脚本。提交超时或页面导航时先核查是否创建，避免自动重复提交。",
+        "inputs": [
+          {
+            "kind": "string",
+            "label": "客户姓名",
+            "name": "name",
+            "required": true
+          },
+          {
+            "kind": "string",
+            "label": "邮箱",
+            "name": "email",
+            "required": true
+          },
+          {
+            "default": "",
+            "kind": "string",
+            "label": "公司",
+            "name": "company",
+            "required": false
+          },
+          {
+            "default": "personal",
+            "kind": "string",
+            "label": "客户类型",
+            "name": "type",
+            "required": false
+          },
+          {
+            "default": false,
+            "kind": "boolean",
+            "label": "接收产品更新",
+            "name": "updates",
+            "required": false
+          }
+        ],
+        "judgementMarkdown": "填写阶段：字段与本次输入一致、邮箱有效，客户类型和更新选项符合任务要求。\n\n提交阶段：实际页面出现「已保存：本次姓名 · 编号 DEMO-…」。脚本返回 matchesCustomer 只提供线索，Agent 仍需读取网页核查。",
+        "outputs": [
+          "本次客户姓名",
+          "页面显示的演示编号"
+        ],
+        "prerequisitesMarkdown": "仅适用于应用自带 auto-browser://demo。此页面不连接外部业务系统；其他网站需重新观察和编写脚本。",
+        "procedureMarkdown": "1. 读取当前页面，确认客户表单与适用范围。\n2. 获取本次客户姓名、邮箱及可选资料。\n3. 根据页面情况选择 `fill-customer`，填写后检查字段和校验结果。也可以使用浏览器基础动作。\n4. 确认本次资料后选择 `save-customer` 提交。\n5. 重新观察页面，读取成功消息与编号，向用户报告实际结果。",
+        "purpose": "在 Auto Browser 本地练习表单中创建一位客户，取得页面返回的演示编号。"
+      },
+      "scripts": [
+        {
+          "content": "if (signal.aborted) throw new Error('已取消');\nif (!document.querySelector('#customer-form') || !location.pathname.endsWith('/demo')) throw new Error('脚本仅适用于 Auto Browser 本地客户练习页面');\nconst setValue = (id, value) => {\n  const el = document.getElementById(id);\n  if (!el) throw new Error(`缺少字段 ${id}`);\n  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, value);\n  el.dispatchEvent(new Event('input', { bubbles: true }));\n  el.dispatchEvent(new Event('change', { bubbles: true }));\n};\nsetValue('name', inputs.name);\nsetValue('email', inputs.email);\nsetValue('company', inputs.company || '');\nconst type = document.getElementById('type');\nif (!['personal','business'].includes(inputs.type)) throw new Error('客户类型应为 personal 或 business');\ntype.value = inputs.type;\ntype.dispatchEvent(new Event('change', { bubbles: true }));\nconst updates = document.getElementById('updates');\nupdates.checked = inputs.updates;\nupdates.dispatchEvent(new Event('change', { bubbles: true }));\ndocument.getElementById('result').textContent = '';\nreturn { name: document.getElementById('name').value, email: document.getElementById('email').value, type: type.value, valid: document.getElementById('customer-form').checkValidity() };\n",
+          "description": "填写并核查字段，不提交表单。",
+          "id": "fill-customer",
+          "inputs": [
+            {
+              "kind": "string",
+              "label": "客户姓名",
+              "name": "name",
+              "required": true
+            },
+            {
+              "kind": "string",
+              "label": "邮箱",
+              "name": "email",
+              "required": true
+            },
+            {
+              "default": "",
+              "kind": "string",
+              "label": "公司",
+              "name": "company",
+              "required": false
+            },
+            {
+              "default": "personal",
+              "kind": "string",
+              "label": "客户类型",
+              "name": "type",
+              "required": false
+            },
+            {
+              "default": false,
+              "kind": "boolean",
+              "label": "接收产品更新",
+              "name": "updates",
+              "required": false
+            }
+          ],
+          "name": "填写客户资料",
+          "usageMarkdown": "确认处于本地练习表单后调用，检查 valid 和页面字段。"
+        },
+        {
+          "content": "if (signal.aborted) throw new Error('已取消');\nconst form = document.querySelector('#customer-form');\nif (!form || !location.pathname.endsWith('/demo')) throw new Error('脚本仅适用于 Auto Browser 本地客户练习页面');\nif (!form.checkValidity()) throw new Error('必填字段或邮箱校验未通过');\nform.requestSubmit();\nawait new Promise(resolve => setTimeout(resolve, 150));\nconst message = document.querySelector('#result').textContent.trim();\nconst name = document.querySelector('#name').value;\nreturn { message, matchesCustomer: message.startsWith(`已保存：${name} · 编号 DEMO-`), recordId: message.match(/DEMO-\\d+/)?.[0] || null };\n",
+          "description": "对校验通过的本地练习表单提交一次，返回成功消息和演示编号。",
+          "id": "save-customer",
+          "inputs": [],
+          "name": "提交客户并读取结果",
+          "usageMarkdown": "Agent 确认资料后调用，随后重新观察并核查实际成功消息。"
+        }
+      ],
+      "sourceNotes": "示例说明与脚本；用户人工演示已观察到姓名、邮箱、公司、类型、更新选项、提交及成功消息。跨网站适用性未验证。",
+      "sourceRecordingIds": [
+        "675968d2-295d-4850-a78c-584945ddf345"
+      ],
+      "submittedBy": "Codex（用户自己的 Agent）",
+      "verification": "unverified",
+      "version": 1
+    }
+  ],
+  "flow": {
+    "archiveState": "archived",
+    "createdAt": "2026-10-10T15:19:42.044738+00:00",
+    "currentArchivedRevisionId": "53b63e70-0e68-41a3-878d-2d83df4c4cad",
+    "description": "",
+    "domainId": "3e89ea4f-7956-4c0d-8519-d31491ee36d7",
+    "id": "ff540127-297e-4ec3-b7dc-3bdb0b97a845",
+    "name": "新增客户（人工演示）",
+    "origin": "human_recording",
+    "recordingIds": [
+      "675968d2-295d-4850-a78c-584945ddf345"
+    ],
+    "revision": 3,
+    "tags": [],
+    "updatedAt": "2026-10-10T15:22:38.665323+00:00"
+  },
+  "format": "auto-browser-flow",
+  "recordings": [
+    {
+      "captureState": "completed",
+      "domainId": "3e89ea4f-7956-4c0d-8519-d31491ee36d7",
+      "endedAt": "2026-10-10T15:20:00.697888+00:00",
+      "entryUrl": "http://127.0.0.1:58741/demo",
+      "events": [
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": ""
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:42.062Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": ""
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "6b6ec35b-c846-411d-9852-e50cd1f4ebde",
+          "kind": "page_context",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:42.064315+00:00",
+          "sequence": 1,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333"
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": ""
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:47.716Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": ""
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "button": 0,
+          "id": "a61bdc46-49b3-42df-87ba-7c195f0fda2b",
+          "kind": "click",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:47.718978+00:00",
+          "sequence": 2,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333",
+          "target": {
+            "label": "客户姓名",
+            "name": "name",
+            "selector": "#name",
+            "tag": "input",
+            "type": "text"
+          }
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": ""
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:47.838Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": ""
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "164c3e16-9221-43f4-86a1-aaf3e33e2ae7",
+          "kind": "page_change",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:47.841276+00:00",
+          "sequence": 3,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333"
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": ""
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:47.918Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": ""
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "d3660610-884d-456e-84f3-946d1701f6a5",
+          "kind": "change",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:47.919947+00:00",
+          "sequence": 4,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333",
+          "target": {
+            "label": "客户姓名",
+            "name": "name",
+            "selector": "#name",
+            "tag": "input",
+            "type": "text"
+          },
+          "value": "张三"
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": ""
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:47.969Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": ""
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "button": 0,
+          "id": "e59e823a-b0a9-4228-889b-9f6528cdd3d6",
+          "kind": "click",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:47.970226+00:00",
+          "sequence": 5,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333",
+          "target": {
+            "label": "邮箱",
+            "name": "email",
+            "selector": "#email",
+            "tag": "input",
+            "type": "email"
+          }
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:48.090Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": ""
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "95dfa4ed-ab60-44a6-94cb-27ca000175b8",
+          "kind": "page_change",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:48.091816+00:00",
+          "sequence": 6,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333"
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:48.161Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": ""
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "27b7cd23-9790-4b3b-a21f-dca1505c5126",
+          "kind": "change",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:48.163387+00:00",
+          "sequence": 7,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333",
+          "target": {
+            "label": "邮箱",
+            "name": "email",
+            "selector": "#email",
+            "tag": "input",
+            "type": "email"
+          },
+          "value": "zhang@example.com"
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:48.209Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "button": 0,
+          "id": "669a1b08-e9c8-40cb-aeb4-6feee9370fe5",
+          "kind": "click",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:48.211261+00:00",
+          "sequence": 8,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333",
+          "target": {
+            "label": "公司",
+            "name": "company",
+            "selector": "#company",
+            "tag": "input",
+            "type": "text"
+          }
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:48.330Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "82c46bf1-3411-47ff-b5d5-a5f23f2077fb",
+          "kind": "page_change",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:48.332771+00:00",
+          "sequence": 9,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333"
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:48.418Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": ""
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "b0f8a843-e061-41c1-af01-cedfc968f5b0",
+          "kind": "change",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:48.420167+00:00",
+          "sequence": 10,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333",
+          "target": {
+            "label": "公司",
+            "name": "company",
+            "selector": "#company",
+            "tag": "input",
+            "type": "text"
+          },
+          "value": "示例公司"
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:53.059Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "personal"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "d41f72d5-92fe-47a6-aa13-281f829e1ca3",
+          "kind": "change",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:53.069095+00:00",
+          "sequence": 11,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333",
+          "target": {
+            "label": "客户类型",
+            "name": "",
+            "selector": "#type",
+            "tag": "select",
+            "type": "select-one"
+          },
+          "value": "business"
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:56.705Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": false
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "button": 0,
+          "id": "f980c5c2-4570-4c29-ad38-c7781cb699a2",
+          "kind": "click",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:56.707166+00:00",
+          "sequence": 12,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333",
+          "target": {
+            "label": "接收产品更新",
+            "name": "",
+            "selector": "#updates",
+            "tag": "input",
+            "type": "checkbox"
+          }
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:56.705Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "d238dd0a-6f72-4a8e-855d-6a05f4d4f84e",
+          "kind": "change",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:56.720290+00:00",
+          "sequence": 13,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333",
+          "target": {
+            "label": "接收产品更新",
+            "name": "",
+            "selector": "#updates",
+            "tag": "input",
+            "type": "checkbox"
+          },
+          "value": true
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:56.807Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "button": 0,
+          "id": "7baee748-d7e4-4d54-b06d-c7f188b83462",
+          "kind": "click",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:56.809260+00:00",
+          "sequence": 14,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333",
+          "target": {
+            "label": "保存客户",
+            "name": "",
+            "selector": "button",
+            "tag": "button",
+            "type": "submit"
+          }
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:56.808Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "5237d084-88cb-472a-95fd-620f30a3bd2e",
+          "kind": "submit",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:56.820403+00:00",
+          "sequence": 15,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333",
+          "target": {
+            "label": "客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户",
+            "name": "[object HTMLInputElement]",
+            "selector": "#customer-form",
+            "tag": "form",
+            "type": {
+              "0": {},
+              "1": {}
+            }
+          }
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n已保存：张三 · 编号 DEMO-596809\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:56.827Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "21ecf854-7d04-49a4-9b2e-904c989d544e",
+          "kind": "page_change",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:56.834017+00:00",
+          "sequence": 16,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333"
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n已保存：张三 · 编号 DEMO-596809\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:19:56.928Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n已保存：张三 · 编号 DEMO-596809\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "e9753add-9820-47b2-a74c-e1e576136d7e",
+          "kind": "page_change",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:19:56.929725+00:00",
+          "sequence": 17,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333"
+        },
+        {
+          "actor": "user",
+          "afterContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n已保存：张三 · 编号 DEMO-596809\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "at": "2026-10-10T15:20:00.680Z",
+          "beforeContext": {
+            "fields": [
+              {
+                "label": "客户姓名",
+                "name": "name",
+                "selector": "#name",
+                "tag": "input",
+                "type": "text",
+                "value": "张三"
+              },
+              {
+                "label": "邮箱",
+                "name": "email",
+                "selector": "#email",
+                "tag": "input",
+                "type": "email",
+                "value": "zhang@example.com"
+              },
+              {
+                "label": "公司",
+                "name": "company",
+                "selector": "#company",
+                "tag": "input",
+                "type": "text",
+                "value": "示例公司"
+              },
+              {
+                "label": "客户类型",
+                "name": "",
+                "selector": "#type",
+                "tag": "select",
+                "type": "select-one",
+                "value": "business"
+              },
+              {
+                "label": "接收产品更新",
+                "name": "",
+                "selector": "#updates",
+                "tag": "input",
+                "type": "checkbox",
+                "value": true
+              }
+            ],
+            "pageUrl": "http://127.0.0.1:58741/demo",
+            "text": "FIELDNOTES / 客户工作台\n本地练习页面\n新建记录\n添加一位新客户\n用这个表单试跑你的第一个流程。这里的数据只保存在当前页面。\n\n客户姓名\n\n邮箱\n\n公司\n\n客户类型\n\n接收产品更新\n保存客户\n已保存：张三 · 编号 DEMO-596809\n练习不会向外部系统提交任何数据。",
+            "title": "客户工作台 · 练习页面"
+          },
+          "id": "65c69c03-0bcc-490a-9d5c-3a0432a80495",
+          "kind": "recording_end",
+          "pageUrl": "http://127.0.0.1:58741/demo",
+          "receivedAt": "2026-10-10T15:20:00.681726+00:00",
+          "sequence": 18,
+          "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333"
+        }
+      ],
+      "flowId": "ff540127-297e-4ec3-b7dc-3bdb0b97a845",
+      "id": "675968d2-295d-4850-a78c-584945ddf345",
+      "limitations": [
+        "当前录制覆盖顶层 DOM；iframe、Shadow DOM、文件内容和原生弹窗尚未采集"
+      ],
+      "sessionId": "99a7c3cf-bac8-4e4e-a337-ab8b0cede333",
+      "startedAt": "2026-10-10T15:19:42.044772+00:00"
+    }
+  ],
+  "version": 1
+}

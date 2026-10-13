@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-jev-save-settings"
+description = "Enables the jev_save_settings command without any pre-configured scope."
+commands.allow = ["jev_save_settings"]
+
+[[permission]]
+identifier = "deny-jev-save-settings"
+description = "Denies the jev_save_settings command without any pre-configured scope."
+commands.deny = ["jev_save_settings"]

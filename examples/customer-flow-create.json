@@ -1,0 +1,103 @@
+{
+  "name": "新增客户（本地练习）",
+  "submittedBy": "用户自己的 Agent",
+  "knowledge": {
+    "purpose": "在 Auto Browser 本地练习表单中创建一位客户，取得页面返回的演示编号。",
+    "inputs": [
+      {
+        "name": "name",
+        "label": "客户姓名",
+        "kind": "string",
+        "required": true
+      },
+      {
+        "name": "email",
+        "label": "邮箱",
+        "kind": "string",
+        "required": true
+      },
+      {
+        "name": "company",
+        "label": "公司",
+        "kind": "string",
+        "required": false,
+        "default": ""
+      },
+      {
+        "name": "type",
+        "label": "客户类型",
+        "kind": "string",
+        "required": false,
+        "default": "personal"
+      },
+      {
+        "name": "updates",
+        "label": "接收产品更新",
+        "kind": "boolean",
+        "required": false,
+        "default": false
+      }
+    ],
+    "prerequisitesMarkdown": "仅适用于应用自带 auto-browser://demo。此页面不连接外部业务系统；其他网站需重新观察和编写脚本。",
+    "procedureMarkdown": "1. 读取当前页面，确认客户表单与适用范围。\n2. 获取本次客户姓名、邮箱及可选资料。\n3. 根据页面情况选择 `fill-customer`，填写后检查字段和校验结果。也可以使用浏览器基础动作。\n4. 确认本次资料后选择 `save-customer` 提交。\n5. 重新观察页面，读取成功消息与编号，向用户报告实际结果。",
+    "judgementMarkdown": "填写阶段：字段与本次输入一致、邮箱有效，客户类型和更新选项符合任务要求。\n\n提交阶段：实际页面出现「已保存：本次姓名 · 编号 DEMO-…」。脚本返回 matchesCustomer 只提供线索，Agent 仍需读取网页核查。",
+    "exceptionsMarkdown": "出现必填或邮箱校验错误时修正本次数据。页面结构不同则重新观察，不盲目调用脚本。提交超时或页面导航时先核查是否创建，避免自动重复提交。",
+    "outputs": [
+      "本次客户姓名",
+      "页面显示的演示编号"
+    ]
+  },
+  "scripts": [
+    {
+      "id": "fill-customer",
+      "name": "填写客户资料",
+      "description": "填写并核查字段，不提交表单。",
+      "inputs": [
+        {
+          "name": "name",
+          "label": "客户姓名",
+          "kind": "string",
+          "required": true
+        },
+        {
+          "name": "email",
+          "label": "邮箱",
+          "kind": "string",
+          "required": true
+        },
+        {
+          "name": "company",
+          "label": "公司",
+          "kind": "string",
+          "required": false,
+          "default": ""
+        },
+        {
+          "name": "type",
+          "label": "客户类型",
+          "kind": "string",
+          "required": false,
+          "default": "personal"
+        },
+        {
+          "name": "updates",
+          "label": "接收产品更新",
+          "kind": "boolean",
+          "required": false,
+          "default": false
+        }
+      ],
+      "usageMarkdown": "确认处于本地练习表单后调用，检查 valid 和页面字段。",
+      "content": "if (signal.aborted) throw new Error('已取消');\nif (!document.querySelector('#customer-form') || !location.pathname.endsWith('/demo')) throw new Error('脚本仅适用于 Auto Browser 本地客户练习页面');\nconst setValue = (id, value) => {\n  const el = document.getElementById(id);\n  if (!el) throw new Error(`缺少字段 ${id}`);\n  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, value);\n  el.dispatchEvent(new Event('input', { bubbles: true }));\n  el.dispatchEvent(new Event('change', { bubbles: true }));\n};\nsetValue('name', inputs.name);\nsetValue('email', inputs.email);\nsetValue('company', inputs.company || '');\nconst type = document.getElementById('type');\nif (!['personal','business'].includes(inputs.type)) throw new Error('客户类型应为 personal 或 business');\ntype.value = inputs.type;\ntype.dispatchEvent(new Event('change', { bubbles: true }));\nconst updates = document.getElementById('updates');\nupdates.checked = inputs.updates;\nupdates.dispatchEvent(new Event('change', { bubbles: true }));\ndocument.getElementById('result').textContent = '';\nreturn { name: document.getElementById('name').value, email: document.getElementById('email').value, type: type.value, valid: document.getElementById('customer-form').checkValidity() };\n"
+    },
+    {
+      "id": "save-customer",
+      "name": "提交客户并读取结果",
+      "description": "对校验通过的本地练习表单提交一次，返回成功消息和演示编号。",
+      "inputs": [],
+      "usageMarkdown": "Agent 确认资料后调用，随后重新观察并核查实际成功消息。",
+      "content": "if (signal.aborted) throw new Error('已取消');\nconst form = document.querySelector('#customer-form');\nif (!form || !location.pathname.endsWith('/demo')) throw new Error('脚本仅适用于 Auto Browser 本地客户练习页面');\nif (!form.checkValidity()) throw new Error('必填字段或邮箱校验未通过');\nform.requestSubmit();\nawait new Promise(resolve => setTimeout(resolve, 150));\nconst message = document.querySelector('#result').textContent.trim();\nconst name = document.querySelector('#name').value;\nreturn { message, matchesCustomer: message.startsWith(`已保存：${name} · 编号 DEMO-`), recordId: message.match(/DEMO-\\d+/)?.[0] || null };\n"
+    }
+  ],
+  "sourceNotes": "示例说明与脚本；用户人工演示已观察到姓名、邮箱、公司、类型、更新选项、提交及成功消息。跨网站适用性未验证。"
+}

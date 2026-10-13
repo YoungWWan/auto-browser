@@ -1,0 +1,21 @@
+if (signal.aborted) throw new Error('已取消');
+if (!document.querySelector('#customer-form') || !location.pathname.endsWith('/demo')) throw new Error('脚本仅适用于 Auto Browser 本地客户练习页面');
+const setValue = (id, value) => {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`缺少字段 ${id}`);
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, value);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+};
+setValue('name', inputs.name);
+setValue('email', inputs.email);
+setValue('company', inputs.company || '');
+const type = document.getElementById('type');
+if (!['personal','business'].includes(inputs.type)) throw new Error('客户类型应为 personal 或 business');
+type.value = inputs.type;
+type.dispatchEvent(new Event('change', { bubbles: true }));
+const updates = document.getElementById('updates');
+updates.checked = inputs.updates;
+updates.dispatchEvent(new Event('change', { bubbles: true }));
+document.getElementById('result').textContent = '';
+return { name: document.getElementById('name').value, email: document.getElementById('email').value, type: type.value, valid: document.getElementById('customer-form').checkValidity() };
