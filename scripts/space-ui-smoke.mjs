@@ -141,7 +141,10 @@ try {
     .getByRole("textbox", { name: "网站地址" })
     .fill("https://expense.example");
   await page.getByRole("button", { name: "打开网址", exact: true }).click();
-  await page.getByRole("button", { name: /新网页/ }).waitFor();
+  await page
+    .locator(".session-item[aria-current='page']")
+    .filter({ hasText: "expense.example" })
+    .waitFor();
   const createdId = (await state()).domains.find(
     (d) => d.name === "报销管理",
   ).id;
