@@ -7,6 +7,10 @@ on:
         description: Existing version tag to build and publish (for example v0.3.1)
         required: true
         type: string
+      reuse_run_id:
+        description: Optional failed Release run ID with successful macOS and Linux installers; rebuild Windows only
+        required: false
+        type: string
   push:
     tags: ["v*"]
 
@@ -15,30 +19,40 @@ env:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+    steps:
+      - id: targets
+        env:
+          REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          const targets = [
+            { os: 'macos-15-intel', target: 'aarch64-apple-darwin', bundles: 'dmg' },
+            { os: 'macos-15-intel', target: 'x86_64-apple-darwin', bundles: 'dmg' },
+            { os: 'windows-2022', target: 'x86_64-pc-windows-msvc', bundles: 'nsis,msi' },
+            { os: 'ubuntu-22.04', target: 'x86_64-unknown-linux-gnu', bundles: 'appimage,deb,rpm' },
+          ];
+          const include = process.env.REUSE_RUN_ID ? targets.filter(t => t.target.includes('windows')) : targets;
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({include})}\n`);
+          JS
+
   build:
     name: Build ${{ matrix.target }}
+    needs: prepare
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: macos-15-intel
-            target: aarch64-apple-darwin
-            bundles: dmg
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
-            bundles: dmg
-          - os: windows-2022
-            target: x86_64-pc-windows-msvc
-            bundles: nsis,msi
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            bundles: appimage,deb,rpm
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -68,6 +82,18 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm test
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+      - name: Prepare verified WiX tools with download retries
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $wixArchive = Join-Path $env:RUNNER_TEMP 'wix314-binaries.zip'
+          $wixDirectory = Join-Path $env:LOCALAPPDATA 'tauri\WixTools314'
+          curl.exe --fail --location --retry 5 --retry-all-errors --retry-delay 5 --connect-timeout 30 --max-time 180 --output $wixArchive 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip'
+          if ($LASTEXITCODE -ne 0) { throw 'WiX download failed after retries' }
+          $wixHash = (Get-FileHash $wixArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($wixHash -ne '6ac824e1642d6f7277d0ed7ea09411a508f6116ba6fae0aa5f2c7daa2ff43d31') { throw 'WiX SHA-256 mismatch' }
+          Expand-Archive -Path $wixArchive -DestinationPath $wixDirectory -Force
+          if (!(Test-Path (Join-Path $wixDirectory 'light.exe'))) { throw 'WiX extraction incomplete' }
       - name: Build installers with bundled MCP agent and Skill
         run: npm run desktop:build -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --ci --verbose
         env:
@@ -87,6 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -94,11 +121,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Reuse successful installers from the previous release run
+        if: inputs.reuse_run_id
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.reuse_run_id }}
+          pattern: installers-*
+          path: artifacts/release
+          merge-multiple: true
       - uses: actions/download-artifact@v4
         with:
           pattern: installers-*
           path: artifacts/release
           merge-multiple: true
+      - name: Verify reused installer versions
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          const version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+          for (const file of fs.readdirSync('artifacts/release')) {
+            if (!file.startsWith(`Auto-Browser_${version}_`)) throw new Error(`Installer version mismatch: ${file}`);
+          }
+          JS
       - run: node scripts/release-checksums.mjs
       - name: Publish preview release only after all platforms pass
         env:
