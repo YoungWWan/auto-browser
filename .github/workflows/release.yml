@@ -33,7 +33,7 @@ jobs:
           - os: macos-15-intel
             target: x86_64-apple-darwin
             bundles: dmg
-          - os: windows-latest
+          - os: windows-2022
             target: x86_64-pc-windows-msvc
             bundles: nsis,msi
           - os: ubuntu-22.04
@@ -55,6 +55,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
           key: release-${{ matrix.target }}
+          cache-on-failure: true
       - name: Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -68,7 +69,7 @@ jobs:
       - run: npm test
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
       - name: Build installers with bundled MCP agent and Skill
-        run: npm run desktop:build -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --ci
+        run: npm run desktop:build -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --ci --verbose
         env:
           APPIMAGE_EXTRACT_AND_RUN: "1"
       - name: Collect and verify installer formats
