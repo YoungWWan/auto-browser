@@ -1,4 +1,4 @@
-# Auto Browser v0.3.1
+# Auto Browser v0.3.2
 
 首个开源预览版本。使用自己的 Agent，通过 MCP / CLI 在桌面原生 WebView 中操作网页，把人工录制、流程知识和可复用 JavaScript 工作包保存在本地。
 

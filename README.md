@@ -2,7 +2,7 @@
 
 Tauri 2 跨平台桌面应用：在原生 WebView 中打开网站，让用户自己的 Agent 通过 MCP / CLI / Skill 读取流程、操作网页并保存可复用工作包。无需 Chrome 扩展，不绑定模型供应商。
 
-首个公开版本为 **v0.3.1 预览版**，采用 [MIT 许可](LICENSE)。已实现业务空间、人工录制、两种归档状态、Agent 归档与从零生成、工作包版本及 WebView 内 JS 执行。「Agent 接入」提供可复制的一句话，让用户自己的 Agent 完成配置和连接检查。通过 GitHub Actions 构建 macOS、Windows、Linux 安装包；macOS 已完成核心原生验证，Windows/Linux 的真实站点与桌面交互仍需运行验收。
+首个公开版本为 **v0.3.2 预览版**，采用 [MIT 许可](LICENSE)。已实现业务空间、人工录制、两种归档状态、Agent 归档与从零生成、工作包版本及 WebView 内 JS 执行。「Agent 接入」提供可复制的一句话，让用户自己的 Agent 完成配置和连接检查。通过 GitHub Actions 构建 macOS、Windows、Linux 安装包；macOS 已完成核心原生验证，Windows/Linux 的真实站点与桌面交互仍需运行验收。
 
 ## 下载与平台
 
@@ -43,7 +43,7 @@ npm run desktop:build -- --target aarch64-apple-darwin --bundles dmg
 npm run desktop:build -- --target x86_64-apple-darwin --bundles dmg
 ```
 
-默认生成 release 安装包，位于 `src-tauri/target/release/bundle/`；显式使用 `--target` 时位于 `src-tauri/target/<target>/release/bundle/`。调试构建可加 `--debug`。`desktop:build` 会先编译并打包同一架构的 Agent 二进制；直接运行 `tauri build` 不会准备 Agent。
+默认生成 release 安装包，位于 `src-tauri/target/release/bundle/`；显式使用 `--target` 时位于 `src-tauri/target/<target>/release/bundle/`。调试构建可加 `--debug`。`desktop:build` 通过 Tauri 一次编译并打包桌面应用和同一架构的 Agent 二进制。Agent 是 Cargo 程序，Tauri 自动发现它，无需再次配置为 sidecar。
 
 主分支与 PR 自动执行三端检查；推送 `v*` 标签后执行四个构建目标，全部通过后发布 GitHub 预览版和 `SHA256SUMS.txt`。发布前运行 `npm run check:version`，确保 npm、Cargo、Tauri 和标签版本一致。云端运行器临时不可用时，可在 Actions → Release → Run workflow 选择 `main` 并填写已有版本标签重试；构建仍读取该标签的源码。macOS CI 使用 `macos-15-intel`，通过 Rust 目标分别生成 Intel 与 Apple Silicon 安装包。
 
