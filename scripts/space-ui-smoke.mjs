@@ -239,7 +239,32 @@ try {
     instruction,
     /只读调用 app_status、domain_list、browser_list、flow_list/,
   );
-  assert.equal((await state()).calls.length, callsBeforeCopy);
+  // A slow runner can refresh while the clipboard UI settles. Exercise that
+  // interval and reject operations beyond the app's existing read-only polling.
+  await page.waitForFunction(
+    (offset) =>
+      window.fixture.calls.slice(offset).some((call) => call.name === "app_status"),
+    callsBeforeCopy,
+  );
+  const backgroundReads = new Set([
+    "browser_list",
+    "workflow_list",
+    "run_list",
+    "app_status",
+    "guide_list",
+    "domain_list",
+    "recording_list",
+    "flow_list",
+    "script_run_list",
+    "recording_status",
+  ]);
+  assert.deepEqual(
+    (await state()).calls
+      .slice(callsBeforeCopy)
+      .filter((call) => !backgroundReads.has(call.name)),
+    [],
+    "Copying setup instructions must not issue commands beyond background reads",
+  );
   await page.getByText("查看接入指令", { exact: true }).click();
   assert.equal(
     await page.locator(".setup-instruction p").textContent(),
