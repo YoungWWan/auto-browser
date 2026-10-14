@@ -117,6 +117,7 @@ struct Browser {
     states: Mutex<VecDeque<Value>>,
     current: Mutex<Value>,
     actions: AtomicUsize,
+    observations: AtomicUsize,
     change: bool,
     action_delay: u64,
     stale_action: bool,
@@ -127,6 +128,7 @@ impl Browser {
             current: Mutex::new(states.last().unwrap().clone()),
             states: Mutex::new(states.into()),
             actions: AtomicUsize::new(0),
+            observations: AtomicUsize::new(0),
             change: true,
             action_delay: 0,
             stale_action: false,
@@ -135,6 +137,7 @@ impl Browser {
 }
 impl BrowserPort for Browser {
     async fn observe(&self) -> Result<Value, String> {
+        self.observations.fetch_add(1, Ordering::SeqCst);
         if let Some(state) = self.states.lock().unwrap().pop_front() {
             *self.current.lock().unwrap() = state;
         }
@@ -216,6 +219,61 @@ async fn click_then_done_requires_independent_verification_and_records_usage() {
     assert_eq!(task.input_tokens, 40);
     assert!(task.events[0].executed);
     assert!(!task.events[1].executed);
+    // Initial observation, pre-click check, post-click observation, DONE check.
+    assert_eq!(browser.observations.load(Ordering::SeqCst), 4);
+}
+
+fn guarded_snapshot(text: &str) -> Value {
+    let mut state = snapshot(text);
+    state["freshness"] = json!({"fields":[[2,0]]});
+    state["elements"][0]["guard"] = json!([1, "打开客户列表", "客户甲"]);
+    state
+}
+
+#[tokio::test]
+async fn unrelated_text_and_scroll_changes_do_not_spend_an_extra_decision() {
+    let first = guarded_snapshot("入口，广告一");
+    let mut fresh = guarded_snapshot("入口，广告二");
+    fresh["scroll"]["y"] = json!(100);
+    fresh["elements"][2]["label"] = json!("无关链接的新文案");
+    let browser = Browser::new(vec![first, fresh]);
+    let decider = Decider::new(&["a0", "DONE"]);
+    let task = run(&browser, &decider, &request()).await;
+    assert_eq!(task.status, "needs_verification");
+    assert_eq!(browser.actions.load(Ordering::SeqCst), 1);
+    assert_eq!(decider.calls.load(Ordering::SeqCst), 2);
+    assert!(task.events.iter().all(|event| event.reason.is_none()));
+}
+
+#[tokio::test]
+async fn target_form_navigation_and_terminal_context_changes_remain_stale() {
+    for change in [
+        "target", "field", "document", "url", "loading", "disabled", "done",
+    ] {
+        let first = guarded_snapshot("入口");
+        let mut fresh = first.clone();
+        match change {
+            "target" => fresh["elements"][0]["guard"] = json!([1, "打开客户列表", "客户乙"]),
+            "field" => fresh["freshness"]["fields"] = json!([[2, 1]]),
+            "document" => fresh["documentId"] = json!("new-document"),
+            "url" => fresh["url"] = json!("https://example.com/other"),
+            "loading" => fresh["readyState"] = json!("loading"),
+            "disabled" => fresh["elements"][0]["disabled"] = json!(true),
+            "done" => fresh["text"] = json!("尚未完成的新页面"),
+            _ => unreachable!(),
+        }
+        let ready = guarded_snapshot("新状态");
+        let browser = Browser::new(vec![first, fresh, ready]);
+        let decider = Decider::new(&[if change == "done" { "DONE" } else { "a0" }, "DONE"]);
+        let task = run(&browser, &decider, &request()).await;
+        assert_eq!(task.status, "needs_verification", "{change}");
+        assert_eq!(
+            task.events[0].reason.as_deref(),
+            Some("stale_state"),
+            "{change}"
+        );
+        assert_eq!(browser.actions.load(Ordering::SeqCst), 0, "{change}");
+    }
 }
 #[tokio::test]
 async fn uncertain_or_blocked_decision_never_clicks() {

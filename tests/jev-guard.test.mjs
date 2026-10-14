@@ -83,3 +83,55 @@ test("observation exposes ARIA disabled controls and scroll boundaries", async (
   assert.ok(snapshot.scroll.maxY > 1000);
   assert.equal(snapshot.scroll.y, 0);
 });
+
+test("unrelated text, controls and scrolling do not invalidate a scoped click", async () => {
+  await page.setContent(
+    '<section><button id="action" onclick="document.querySelector(\'output\').textContent=\'已执行\'">打开列表</button><output>尚未执行</output></section><aside><span id="ticker">广告一</span><button id="other">其他操作</button></aside><div style="height:2500px"></div>',
+  );
+  const snapshot = await observe();
+  await page.evaluate(() => {
+    document.querySelector("#ticker").textContent = "广告二";
+    document.querySelector("#other").textContent = "其他文案";
+    window.scrollTo(0, 300);
+  });
+  assert.equal((await click(snapshot)).ok, true);
+  assert.equal(await page.locator("output").textContent(), "已执行");
+});
+
+test("target context, identity and disabled state changes still block a click", async () => {
+  for (const change of ["context", "replace", "disabled", "url"]) {
+    await page.setContent(
+      '<section><p id="context">客户甲</p><button id="action" onclick="document.querySelector(\'output\').textContent=\'已执行\'">打开列表</button><output>尚未执行</output></section>',
+    );
+    const snapshot = await observe();
+    await page.evaluate((change) => {
+      const target = document.querySelector("#action");
+      if (change === "context")
+        document.querySelector("#context").textContent = "客户乙";
+      if (change === "replace") target.replaceWith(target.cloneNode(true));
+      if (change === "disabled") target.setAttribute("aria-disabled", "true");
+      if (change === "url") history.pushState({}, "", "#another-customer");
+    }, change);
+    assert.equal((await click(snapshot)).error, "JEV_STALE_STATE", change);
+    assert.equal(await page.locator("output").textContent(), "尚未执行");
+  }
+});
+
+test("field changes outside the target scope invalidate decisions without exposing secrets", async () => {
+  for (const type of ["text", "password", "hidden"]) {
+    await page.setContent(
+      `<section><button id="action" onclick="document.querySelector('output').textContent='已执行'">打开列表</button><output>尚未执行</output></section><input id="field" type="${type}" value="original">`,
+    );
+    const snapshot = await observe();
+    await page
+      .locator("#field")
+      .evaluate((el) => (el.value = "secret-example"));
+    assert.equal((await click(snapshot)).error, "JEV_STALE_STATE", type);
+    assert.equal(await page.locator("output").textContent(), "尚未执行");
+    if (type === "password")
+      assert.equal(
+        JSON.stringify(await observe()).includes("secret-example"),
+        false,
+      );
+  }
+});

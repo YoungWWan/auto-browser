@@ -22,8 +22,41 @@ pub fn signature(snapshot: &Value) -> Value {
         snapshot["readyState"],
         snapshot["text"],
         snapshot["scroll"],
+        snapshot["freshness"],
         snapshot["elements"]
     ])
+}
+pub fn decision_is_fresh(snapshot: &Value, fresh: &Value, action: Option<&Candidate>) -> bool {
+    let selector = action
+        .filter(|a| a.step.kind == "click")
+        .and_then(|a| a.step.target.as_ref())
+        .and_then(|target| target.selector.as_deref());
+    let element = |state: &Value| {
+        let matches: Vec<_> = state["elements"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|e| e["selector"].as_str() == selector)
+            .collect();
+        (matches.len() == 1).then(|| matches[0].clone())
+    };
+    // Clicks depend on the observed node, its local meaning and form state.
+    // Scrolling and terminal decisions still require the complete page context.
+    if selector.is_some() && snapshot["freshness"]["fields"].is_array() {
+        let (Some(before), Some(after)) = (element(snapshot), element(fresh)) else {
+            return false;
+        };
+        return fresh["readyState"] == "complete"
+            && snapshot["documentId"].is_string()
+            && snapshot["documentId"] == fresh["documentId"]
+            && snapshot["url"] == fresh["url"]
+            && snapshot["readyState"] == fresh["readyState"]
+            && snapshot["freshness"] == fresh["freshness"]
+            && before["guard"].is_array()
+            && before["guard"] == after["guard"]
+            && after["disabled"] != true;
+    }
+    signature(snapshot) == signature(fresh)
 }
 fn event(
     choice: &str,
@@ -74,13 +107,17 @@ pub async fn run<B: BrowserPort, D: DecisionPort>(
     let mut decisions = 0;
     let mut waits = 0;
     let mut last_no_effect = None;
+    let mut pending_snapshot = None;
     let outcome: Result<(), String> = async {
         loop {
             task.elapsed_ms = start.elapsed().as_millis() as u64;
             if *cancel.borrow() { task.finish("stopped", None); break; }
             if tokio::time::Instant::now() >= deadline { task.finish("budget", Some("已达到本次时间限制，请主 Agent 核查后继续".into())); break; }
             if decisions >= request.max_steps { task.finish("step_limit", Some("已达到本次决策次数限制".into())); break; }
-            let snapshot = observe(browser, &mut cancel, deadline).await?;
+            let snapshot = match pending_snapshot.take() {
+                Some(snapshot) => snapshot,
+                None => observe(browser, &mut cancel, deadline).await?,
+            };
             request.check_origin(snapshot["url"].as_str().ok_or("网页地址不可用")?)?;
             task.last_snapshot = Some(decision_snapshot(&snapshot));
             save(task)?;
@@ -116,8 +153,9 @@ pub async fn run<B: BrowserPort, D: DecisionPort>(
             let action = actions.iter().find(|a| a.id == decision.choice);
             let description = action.map(|a| a.description.as_str()).unwrap_or(&decision.choice);
             let record = event(&decision.choice, Some(decision.confidence), description, false, None, decision.api_ms);
-            if signature(&fresh) != signature(&snapshot) {
-                task.events.push(TaskEvent { reason: Some("stale_state".into()), ..record }); save(task)?; continue;
+            if !decision_is_fresh(&snapshot, &fresh, action) {
+                task.events.push(TaskEvent { reason: Some("stale_state".into()), ..record }); save(task)?;
+                pending_snapshot = Some(fresh); continue;
             }
             if tokio::time::Instant::now() >= deadline { task.finish("budget", Some("决策完成时已达到时间限制".into())); break; }
             if decision.confidence < settings.min_confidence {
@@ -141,7 +179,7 @@ pub async fn run<B: BrowserPort, D: DecisionPort>(
                 task.events.push(record); task.finish("no_progress", Some("相同动作未产生可观察变化，已返回主 Agent".into())); break;
             }
             if *cancel.borrow() { task.finish("stopped", None); break; }
-            match browser.execute(&snapshot, action).await {
+            match browser.execute(&fresh, action).await {
                 Err(e) if e == "JEV_STALE_STATE" => { task.events.push(TaskEvent { reason: Some("stale_state".into()), ..record }); save(task)?; continue; },
                 Err(e) => { task.events.push(TaskEvent { reason: Some("action_error".into()), ..record }); task.finish("action_error", Some(e)); break; },
                 Ok(_) => task.events.push(TaskEvent { executed: true, ..record }),
@@ -149,9 +187,10 @@ pub async fn run<B: BrowserPort, D: DecisionPort>(
             save(task)?;
             let next = observe(browser, &mut cancel, deadline).await?;
             request.check_origin(next["url"].as_str().ok_or("网页地址不可用")?)?;
-            last_no_effect = if signature(&next) == signature(&snapshot) { Some(description.to_string()) } else { None };
+            last_no_effect = if signature(&next) == signature(&fresh) { Some(description.to_string()) } else { None };
             task.last_snapshot = Some(decision_snapshot(&next));
             save(task)?;
+            pending_snapshot = Some(next);
         }
         Ok(())
     }.await;

@@ -78,6 +78,20 @@ try {
   }
   assert.ok(snapshot.documentId);
   assert.ok(snapshot.scroll);
+  // Run with the workspace hidden to cover WKWebView's suspended frame callbacks.
+  let nativePage;
+  for (let i = 0; i < 30; i++) {
+    nativePage = (await call("browser_list")).sessions.find(
+      (s) => s.id === session.id,
+    );
+    if (nativePage?.status === "ready") break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  assert.equal(
+    nativePage?.status,
+    "ready",
+    "DOM-ready hidden pages must leave loading",
+  );
   await assert.rejects(
     () =>
       call("browser_delegate_start", {

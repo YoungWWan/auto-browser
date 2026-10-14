@@ -10,13 +10,19 @@
     window.__TAURI_INTERNALS__.invoke("page_message", { message });
   function rendered() {
     if (!window.__TAURI_INTERNALS__) return;
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() =>
-        invoke({ kind: "page_rendered", url: location.href }).catch((e) =>
-          console.error("Auto Browser page readiness unavailable", e),
-        ),
-      ),
-    );
+    const url = location.href;
+    let reported = false;
+    const report = () => {
+      if (reported) return;
+      reported = true;
+      clearTimeout(fallback);
+      invoke({ kind: "page_rendered", url }).catch((e) =>
+        console.error("Auto Browser page readiness unavailable", e),
+      );
+    };
+    // Hidden WebViews may suspend animation frames even after DOM initialization.
+    const fallback = setTimeout(report, 150);
+    requestAnimationFrame(() => requestAnimationFrame(report));
   }
   const visible = (el) =>
     !!(
@@ -268,8 +274,7 @@
       .then((result) => {
         if (recordingId === null && result.recordingId)
           api.configure(result.recordingId);
-        // Wait for the document's renderer after the reporting channel is ready.
-        // A hidden page stays loading until it can produce frames.
+        // Prefer rendered frames, with a timer fallback for hidden pages.
         rendered();
       })
       .catch((e) => console.error("Auto Browser recorder unavailable", e));

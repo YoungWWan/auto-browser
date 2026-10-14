@@ -241,21 +241,15 @@ impl BrowserPort for NativeBrowser {
         if self.navigation_blocked.load(Ordering::Relaxed) {
             return Err("已阻止超出允许网站范围的导航，请主 Agent 接手".into());
         }
-        let session = self
-            .app
-            .state::<Core>()
-            .sessions
-            .lock()
-            .unwrap()
-            .get(&self.session_id)
-            .cloned()
-            .ok_or("目标网页已关闭")?;
-        if session.status == "loading" {
-            return Ok(
-                json!({"url":session.url,"title":session.title,"readyState":"loading","elements":[],"text":""}),
-            );
+        // The DOM is authoritative: native/renderer callbacks can lag on hidden views.
+        let snapshot =
+            core::evaluate(&self.app, &self.session_id, &json!({"kind":"snapshot"})).await?;
+        if snapshot["readyState"] == "complete" {
+            if let Some(url) = snapshot["url"].as_str() {
+                core::page_rendered(&self.app, &self.session_id, url)?;
+            }
         }
-        core::evaluate(&self.app, &self.session_id, &json!({"kind":"snapshot"})).await
+        Ok(snapshot)
     }
     async fn execute(&self, snapshot: &Value, candidate: &Candidate) -> Result<(), String> {
         crate::model::validate_step(&candidate.step)?;

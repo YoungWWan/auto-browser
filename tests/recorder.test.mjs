@@ -6,6 +6,52 @@ const source = await readFile(
   new URL("../src-tauri/src/recorder.js", import.meta.url),
   "utf8",
 );
+test("page readiness is reported once when a hidden page never produces frames", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.evaluate(() => {
+      window.messages = [];
+      window.frames = [];
+      window.requestAnimationFrame = (callback) => window.frames.push(callback);
+      window.__TAURI_INTERNALS__ = {
+        invoke: async (_name, { message }) => {
+          window.messages.push(message);
+          return { recordingId: null };
+        },
+      };
+    });
+    await page.evaluate(source);
+    await page.waitForFunction(
+      () => window.messages.some((m) => m.kind === "page_rendered"),
+      null,
+      { polling: 20, timeout: 2000 },
+    );
+    await page.evaluate(() => {
+      while (window.frames.length) window.frames.shift()();
+    });
+    assert.equal(
+      await page.evaluate(
+        () => window.messages.filter((m) => m.kind === "page_rendered").length,
+      ),
+      1,
+    );
+    await page.evaluate(() => {
+      history.pushState({}, "", "#hidden-navigation");
+    });
+    await page.waitForFunction(
+      () =>
+        window.messages.some(
+          (m) =>
+            m.kind === "page_rendered" && m.url.endsWith("#hidden-navigation"),
+        ),
+      null,
+      { polling: 20, timeout: 2000 },
+    );
+  } finally {
+    await browser.close();
+  }
+});
 test("manual recording captures actual form edits, redacts passwords and flushes before stop", async () => {
   const browser = await chromium.launch({ headless: true });
   try {

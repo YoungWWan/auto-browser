@@ -2,7 +2,7 @@
 
 Tauri 2 跨平台桌面应用：在原生 WebView 中打开网站，让用户自己的 Agent 通过 MCP / CLI / Skill 读取流程、操作网页并保存可复用工作包。无需 Chrome 扩展，不绑定模型供应商。
 
-首个公开版本为 **v0.3.2 预览版**，采用 [MIT 许可](LICENSE)。已实现业务空间、人工录制、两种归档状态、Agent 归档与从零生成、工作包版本及 WebView 内 JS 执行。「Agent 接入」提供可复制的一句话，让用户自己的 Agent 完成配置和连接检查。通过 GitHub Actions 构建 macOS、Windows、Linux 安装包；macOS 已完成核心原生验证，Windows/Linux 的真实站点与桌面交互仍需运行验收。
+当前版本为 **v0.3.3 预览版**，采用 [MIT 许可](LICENSE)。已实现业务空间、人工录制、两种归档状态、Agent 归档与从零生成、工作包版本及 WebView 内 JS 执行。「Agent 接入」提供可复制的一句话，让用户自己的 Agent 完成配置和连接检查。通过 GitHub Actions 构建 macOS、Windows、Linux 安装包；macOS 已完成核心原生验证，Windows/Linux 的真实站点与桌面交互仍需运行验收。
 
 ## 下载与平台
 

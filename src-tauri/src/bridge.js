@@ -1,6 +1,42 @@
 (() => {
   const visible = el => !!(el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
-  const text = el => (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ');
+  const text = el => (el?.innerText || el?.textContent || '').trim().replace(/\s+/g, ' ');
+  // Only IDs/revisions leave this cache. Raw field values, including passwords,
+  // remain in the page and are never included in a snapshot or model request.
+  const cache = window.__AUTO_BROWSER_FRESHNESS__ ||= {nodes:new WeakMap(), fields:new WeakMap(), next:1};
+  cache.scopes ||= new WeakMap();
+  const observedScopes = new WeakMap();
+  const identity = el => {
+    if (!cache.nodes.has(el)) cache.nodes.set(el, cache.next++);
+    return cache.nodes.get(el);
+  };
+  const fieldState = el => {
+    const state = JSON.stringify([el.value ?? el.textContent, el.checked, el.selectedIndex,
+      el.disabled, el.readOnly, el.getAttribute('aria-disabled'), el.getAttribute('aria-readonly'),
+      el.options ? [...el.options].map(o => [o.value,o.text,o.disabled]) : null]);
+    const previous = cache.fields.get(el);
+    const revision = previous ? previous.revision + Number(previous.state !== state) : 0;
+    cache.fields.set(el, {state, revision});
+    return [identity(el), revision];
+  };
+  const guard = el => {
+    const scope = el.closest('form,dialog,[role="dialog"],tr,[role="row"],li,article,section') || el.parentElement;
+    let scopeRevision = null;
+    if (scope) {
+      if (!observedScopes.has(scope)) {
+        const state = text(scope);
+        const previous = cache.scopes.get(scope);
+        const revision = previous ? previous.revision + Number(previous.state !== state) : 0;
+        cache.scopes.set(scope, {state, revision});
+        observedScopes.set(scope, revision);
+      }
+      scopeRevision = observedScopes.get(scope);
+    }
+    return [identity(el), scope ? identity(scope) : null, scopeRevision, el.tagName, el.getAttribute('role'), el.type ?? null,
+      label(el), text(el), el.value ?? null, el.checked ?? null, el.disabled ?? null,
+      el.readOnly ?? null, el.getAttribute('href'),
+      ...['aria-disabled','aria-readonly','aria-expanded','aria-checked','aria-selected','aria-controls','inert'].map(a => el.getAttribute(a))];
+  };
   const label = el => [el.getAttribute('aria-label'), ...(el.labels ? [...el.labels].map(text) : []), el.getAttribute('placeholder')].filter(Boolean).join(' ').trim();
   const selector = el => {
     if (el.id && document.querySelectorAll('#' + CSS.escape(el.id)).length === 1) return '#' + CSS.escape(el.id);
@@ -29,9 +65,10 @@
   return request => {
     try {
       if (request.kind === 'snapshot') {
-        const elements = [...document.querySelectorAll('input,textarea,select,button,a,[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="switch"],[role="tab"],[role="menuitem"],[role="textbox"],[role="combobox"],[contenteditable="true"]')].filter(visible).slice(0,250).map(el => ({tag:el.tagName.toLowerCase(),role:el.getAttribute('role'),type:el.type,label:label(el),text:text(el).slice(0,180),selector:selector(el),href:el instanceof HTMLAnchorElement ? el.href : undefined,value:el.type === 'password' ? '[redacted]' : el.value,checked:el.checked ?? (el.getAttribute('aria-checked') === 'true'),disabled:el.disabled || el.getAttribute('aria-disabled') === 'true',options:el.options ? [...el.options].map(o=>({label:o.text,value:o.value})) : undefined}));
+        const fields = [...document.querySelectorAll('input,textarea,select,[contenteditable="true"]')].map(fieldState);
+        const elements = [...document.querySelectorAll('input,textarea,select,button,a,[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="switch"],[role="tab"],[role="menuitem"],[role="textbox"],[role="combobox"],[contenteditable="true"]')].filter(visible).slice(0,250).map(el => ({tag:el.tagName.toLowerCase(),role:el.getAttribute('role'),type:el.type,label:label(el),text:text(el).slice(0,180),selector:selector(el),href:el instanceof HTMLAnchorElement ? el.href : undefined,value:el.type === 'password' ? '[redacted]' : el.value,checked:el.checked ?? (el.getAttribute('aria-checked') === 'true'),disabled:el.disabled || el.getAttribute('aria-disabled') === 'true',options:el.options ? [...el.options].map(o=>({label:o.text,value:o.value})) : undefined,guard:el.type === 'password' ? [identity(el), '[redacted]'] : guard(el)}));
         window.__AUTO_BROWSER_DOCUMENT_ID__ ||= crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
-        return JSON.stringify({ok:true,documentId:window.__AUTO_BROWSER_DOCUMENT_ID__,url:location.href,title:document.title,readyState:document.readyState,scroll:{x:scrollX,y:scrollY,maxY:Math.max(0,document.documentElement.scrollHeight-innerHeight)},recording:window.__AUTO_BROWSER_RECORDER__?.status(),text:text(document.body).slice(0,10000),elements,limitations:{crossOriginFrames:document.querySelectorAll('iframe').length,shadowRootsNotTraversed:true,inputMode:'dom'}});
+        return JSON.stringify({ok:true,documentId:window.__AUTO_BROWSER_DOCUMENT_ID__,url:location.href,title:document.title,readyState:document.readyState,scroll:{x:scrollX,y:scrollY,maxY:Math.max(0,document.documentElement.scrollHeight-innerHeight)},freshness:{fields},recording:window.__AUTO_BROWSER_RECORDER__?.status(),text:text(document.body).slice(0,10000),elements,limitations:{crossOriginFrames:document.querySelectorAll('iframe').length,shadowRootsNotTraversed:true,inputMode:'dom'}});
       }
       let el = request.target ? find(request.target) : null;
       const val = request.value;
